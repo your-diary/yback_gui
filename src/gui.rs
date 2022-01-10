@@ -19,9 +19,9 @@ pub struct MyEguiApp {
 }
 
 impl MyEguiApp {
-    const APP_NAME: &'static str = "hello";
+    const APP_NAME: &'static str = "yback";
     pub const WIDTH: u32 = 620;
-    pub const HEIGHT: u32 = 800;
+    pub const HEIGHT: u32 = 700;
 
     pub fn new(backups: Backups) -> Self {
         MyEguiApp { backups }
