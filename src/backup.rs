@@ -56,7 +56,7 @@ impl Backup {
             config,
             percentage: 0,
             buf: None,
-            output: String::new(),
+            output: String::with_capacity(10000),
             running_status: ProcessState::Ready,
             regex: Regex::new(r"\d{1,3}%").unwrap(),
         }
@@ -65,11 +65,11 @@ impl Backup {
     fn async_run(&mut self) -> () {
         debug!("Backup::async_run()");
         assert!(self.running_status == ProcessState::Ready);
-        //         let child = Command::new("./mock.sh")
-        //             .args(["./mock.txt"])
-        //             .stdout(Stdio::piped())
-        //             .spawn()
-        //             .unwrap();
+//         let child = Command::new("./mock.sh")
+//             .args(["./mock.txt"])
+//             .stdout(Stdio::piped())
+//             .spawn()
+//             .unwrap();
         let child = Command::new("rsync")
             .args(
                 ["--info=name,progress2"] //This is needed to calculate the progress.

@@ -6,6 +6,8 @@
 
 - comments in `config.json`
 
+- CUI mode
+
 - `--help`
 
 - `--add`
