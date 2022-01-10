@@ -1,5 +1,3 @@
-use std::env;
-
 use env_logger;
 
 use yback::{
