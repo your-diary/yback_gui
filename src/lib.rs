@@ -8,13 +8,15 @@ use std::process;
 use config::IsDryrunMode;
 
 pub fn print_usage() -> () {
-    println!("\
+    println!(
+        "\
 Usage
   yback [<option(s)>]
 
 Options
   -n/--dry-run #Passes `--dry-run` option to `rsync`.
-  -h/--help    #Show this help.");
+  -h/--help    #Show this help."
+    );
 }
 
 pub fn parse_argv() -> IsDryrunMode {

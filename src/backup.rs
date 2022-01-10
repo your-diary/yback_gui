@@ -48,6 +48,8 @@ pub struct Backup {
     pub output: String, //The container to which each read output is appended. This field is displayed in GUI.
     running_status: ProcessState, //Is the bound rsync command now being executed or completed?
     regex: Regex,       //used to capture the percentage info from the command output
+    num_line: u32,      //How many lines have been read in total? This is just for optimization.
+    read_speed: u32, //How many lines will be read in one call of `update_progress()`? This is just for optimization.
 }
 
 impl Backup {
@@ -56,20 +58,22 @@ impl Backup {
             config,
             percentage: 0,
             buf: None,
-            output: String::with_capacity(10000),
+            output: String::with_capacity(1_000_000), //This is strongly related to the total performance.
             running_status: ProcessState::Ready,
             regex: Regex::new(r"\d{1,3}%").unwrap(),
+            num_line: 0,
+            read_speed: 2,
         }
     }
 
     fn async_run(&mut self) -> () {
         debug!("Backup::async_run()");
         assert!(self.running_status == ProcessState::Ready);
-//         let child = Command::new("./mock.sh")
-//             .args(["./mock.txt"])
-//             .stdout(Stdio::piped())
-//             .spawn()
-//             .unwrap();
+        //         let child = Command::new("./mock.sh")
+        //             .args(["./mock.txt"])
+        //             .stdout(Stdio::piped())
+        //             .spawn()
+        //             .unwrap();
         let child = Command::new("rsync")
             .args(
                 ["--info=name,progress2"] //This is needed to calculate the progress.
@@ -90,29 +94,40 @@ impl Backup {
     fn update_progress(&mut self) -> () {
         debug!("Backup::update_progress()");
 
-        //TODO FIXME
-        //bottleneck
-        //一回の呼び出しで一行しか読まないため、バックアップ対象が多いと異常に時間がかかり、実用に耐えない(60Hzで動くeguiの限界か)
-        //`for i in 1..1000`でラップすれば高速化することを確認済みだが(†1)、そうするとバックアップ対象が少ないときのリアルタイム性が損なわれる
-        //†1: これはregexがボトルネックではないことも示唆している
-
         //reads the next available line from the command output
-        match self.buf.as_mut().unwrap().next() {
-            Some(line) => {
-                let line: String = line.unwrap();
-                //if `line` is a line which indicates the progress
-                if let Some(m) = self.regex.find_iter(&line).last() {
-                    let m = m.as_str();
-                    self.percentage = m[..(m.len() - 1)].parse().unwrap();
-                } else {
-                    self.output.push_str(&line);
-                    self.output.push('\n');
-                    info!("{}", line);
+        //The outer `for` loop is essentially not needed but it extremely improves performance, effectively making egui have higher Hz than the default 60Hz.
+        for _ in 0..self.read_speed {
+            match self.buf.as_mut().unwrap().next() {
+                Some(line) => {
+                    let line: String = line.unwrap();
+                    //if `line` is a line which indicates the progress
+                    if line.starts_with('\r') {
+                        let m = self.regex.find_iter(&line).last().unwrap().as_str();
+                        self.percentage = m[..(m.len() - 1)].parse().unwrap();
+                    } else {
+                        self.output.push_str(&line);
+                        self.output.push('\n');
+
+                        //optimization
+                        self.num_line += 1;
+                        if (self.num_line % 500 == 0) {
+                            self.output.clear(); //avoids long rendering of GUI by limiting the maximum length of the log area
+                        }
+                        if (self.num_line % (self.read_speed * 50) == 0) {
+                            //adaptively makes `self.read_speed` larger
+                            //As `self.output` gets longer, we read the buffer in a larger speed.
+                            self.read_speed *= 2;
+                            info!("Read speed is now {}x.", self.read_speed);
+                        }
+
+                        info!("{}", line);
+                    }
                 }
-            }
-            None => {
-                self.percentage = 100;
-                self.running_status = ProcessState::Completed;
+                None => {
+                    self.percentage = 100;
+                    self.running_status = ProcessState::Completed;
+                    break;
+                }
             }
         }
     }
